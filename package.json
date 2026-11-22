@@ -1,0 +1,15 @@
+{
+  "name": "glume-gallery",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal gallery system for Alibaba Cloud ESA Pages + EdgeKV",
+  "scripts": {
+    "dev": "esa-cli dev",
+    "commit": "esa-cli commit",
+    "deploy": "esa-cli deploy"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

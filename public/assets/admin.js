@@ -1,3 +1,5 @@
+window.__glumeAdminLoaded = true;
+
 const rows = document.getElementById('rows');
 const empty = document.getElementById('empty');
 const sentinel = document.getElementById('sentinel');

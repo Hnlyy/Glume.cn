@@ -1,0 +1,220 @@
+const rows = document.getElementById('rows');
+const empty = document.getElementById('empty');
+const sentinel = document.getElementById('sentinel');
+const categorySelect = document.getElementById('category');
+const statusSelect = document.getElementById('status');
+const searchInput = document.getElementById('search');
+const modal = document.getElementById('modal');
+const form = document.getElementById('item-form');
+const formError = document.getElementById('form-error');
+const modalTitle = document.getElementById('modal-title');
+
+const state = { page: 0, loading: false, done: false, q: '', category: '', status: '', editing: null };
+const STATUS = {
+  0: { label: '仅后台可见', cls: 'status-0' },
+  1: { label: '正常显示', cls: 'status-1' },
+  2: { label: '已软删除', cls: 'status-2' }
+};
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function isVideo(url) {
+  return /\.(mp4|webm|mov|m4v|ogv)(\?|$)/i.test(String(url || ''));
+}
+
+function dateOf(item) {
+  const value = new Date(Number(item.ext) || Date.now());
+  return Number.isNaN(value.getTime()) ? '' : value.toLocaleString('zh-CN', { hour12: false });
+}
+
+function rowHtml(item) {
+  const status = STATUS[Number(item.xhr)] || STATUS[0];
+  const thumb = isVideo(item.url)
+    ? `<video class="cell-thumb" src="${esc(item.url)}" muted preload="metadata"></video>`
+    : `<img class="cell-thumb" src="${esc(item.url)}" alt="" loading="lazy" />`;
+  const actions = Number(item.xhr) === 2
+    ? `<button type="button" data-act="edit">编辑</button><button type="button" data-act="restore">恢复</button>`
+    : `<button type="button" data-act="edit">编辑</button><button type="button" data-act="preview">预览</button><button class="danger" type="button" data-act="delete">删除</button>`;
+
+  return `<tr data-key="${esc(item.key)}">
+    <td>${thumb}</td>
+    <td><div class="cell-title">${esc(item.nic)}</div><div class="cell-key">${esc(item.key)}</div></td>
+    <td>${esc(item.gfs || '未分类')}</td>
+    <td><span class="status-pill ${status.cls}">${status.label}</span></td>
+    <td>${esc(item.siz)} MB</td>
+    <td>${esc(dateOf(item))}</td>
+    <td><div class="row-actions">${actions}</div></td>
+  </tr>`;
+}
+
+async function load() {
+  if (state.loading || state.done) return;
+  state.loading = true;
+  sentinel.textContent = '加载中…';
+
+  const params = new URLSearchParams({
+    page: String(state.page + 1),
+    limit: '20',
+    status: state.status,
+    category: state.category,
+    q: state.q
+  });
+
+  try {
+    const response = await fetch(`/api/list?${params}`);
+    if (response.status === 401) {
+      location.href = '/login';
+      return;
+    }
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error || '加载失败');
+
+    state.page = result.page;
+    state.done = !result.hasMore;
+    rows.insertAdjacentHTML('beforeend', result.items.map(rowHtml).join(''));
+    empty.hidden = result.total > 0 || state.page > 1;
+
+    for (const category of result.categories || []) {
+      if ([...categorySelect.options].some((option) => option.value === category)) continue;
+      categorySelect.insertAdjacentHTML('beforeend', `<option value="${esc(category)}">${esc(category)}</option>`);
+    }
+    sentinel.textContent = state.done ? '已经到底了' : '继续下滑加载';
+  } catch (error) {
+    sentinel.textContent = '加载失败，向下滚动重试';
+  } finally {
+    state.loading = false;
+  }
+}
+
+function reset() {
+  state.page = 0;
+  state.done = false;
+  state.loading = false;
+  rows.innerHTML = '';
+  load();
+}
+
+function openModal(item) {
+  state.editing = item ? item.key : null;
+  formError.hidden = true;
+  form.reset();
+  modalTitle.textContent = item ? '编辑内容' : '新增内容';
+  if (item) {
+    form.elements.nic.value = item.nic;
+    form.elements.url.value = item.url;
+    form.elements.gfs.value = item.gfs;
+    form.elements.siz.value = item.siz;
+    form.elements.xhr.value = String(item.xhr);
+  }
+  modal.hidden = false;
+}
+
+function closeModal() {
+  modal.hidden = true;
+  state.editing = null;
+}
+
+document.getElementById('create').addEventListener('click', () => openModal(null));
+modal.querySelectorAll('[data-close]').forEach((element) => element.addEventListener('click', closeModal));
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !modal.hidden) closeModal();
+});
+
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  formError.hidden = true;
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+
+  const payload = {
+    nic: form.elements.nic.value,
+    url: form.elements.url.value,
+    gfs: form.elements.gfs.value,
+    siz: form.elements.siz.value,
+    xhr: form.elements.xhr.value
+  };
+  const editing = state.editing;
+  const endpoint = editing ? `/api/item?key=${encodeURIComponent(editing)}` : '/api/item';
+
+  try {
+    const response = await fetch(endpoint, {
+      method: editing ? 'PUT' : 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const result = await response.json();
+    if (!result.ok) throw new Error(result.error || '保存失败');
+    closeModal();
+    reset();
+  } catch (error) {
+    formError.textContent = error.message || '保存失败';
+    formError.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+rows.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-act]');
+  if (!button) return;
+  const key = button.closest('tr').dataset.key;
+  const item = await fetch(`/api/item?key=${encodeURIComponent(key)}`).then((r) => r.json());
+  if (!item.ok) return;
+
+  const action = button.dataset.act;
+  if (action === 'edit') {
+    openModal(item.item);
+    return;
+  }
+  if (action === 'preview') {
+    location.href = `/p/${encodeURIComponent(key)}?preview=1`;
+    return;
+  }
+  if (action === 'restore') {
+    await fetch(`/api/item?key=${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ xhr: 1 })
+    });
+    reset();
+    return;
+  }
+  if (action === 'delete') {
+    if (!confirm('确定软删除这条内容？数据仍会保留，可在后台恢复。')) return;
+    await fetch(`/api/item?key=${encodeURIComponent(key)}`, { method: 'DELETE' });
+    reset();
+  }
+});
+
+let timer;
+searchInput.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(() => {
+    state.q = searchInput.value.trim();
+    reset();
+  }, 300);
+});
+categorySelect.addEventListener('change', () => {
+  state.category = categorySelect.value;
+  reset();
+});
+statusSelect.addEventListener('change', () => {
+  state.status = statusSelect.value;
+  reset();
+});
+
+document.getElementById('logout')?.addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST' });
+  location.href = '/login';
+});
+
+const observer = new IntersectionObserver((entries) => {
+  if (entries.some((entry) => entry.isIntersecting)) load();
+}, { rootMargin: '500px' });
+observer.observe(sentinel);
+
+load();

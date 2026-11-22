@@ -4,7 +4,10 @@ import { listItems, getItem, createItem, updateItem, softDeleteItem } from './li
 import * as pages from './pages.js';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, context, runtimeEnv) {
+    const env = runtimeEnv && Object.keys(runtimeEnv).length > 0
+      ? runtimeEnv
+      : (context && typeof context === 'object' ? context : {});
     try {
       return await handleRequest(request, env);
     } catch (error) {

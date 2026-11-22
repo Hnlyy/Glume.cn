@@ -12,7 +12,7 @@ function layout(title, body, script = '') {
 </head>
 <body>
 ${body}
-${script ? `<script type="module" src="${script}"></script>` : ''}
+${script ? `<script defer src="${script}"></script>` : ''}
 </body>
 </html>`;
 }
@@ -163,7 +163,20 @@ ${siteFooter()}
       </div>
     </form>
   </div>
-</div>`, '/assets/admin.js');
+</div>
+<script>
+  window.__glumeAdminLoaded = false;
+  document.getElementById('create').addEventListener('click', function () {
+    if (!window.__glumeAdminLoaded) document.getElementById('modal').hidden = false;
+  });
+  setTimeout(function () {
+    if (window.__glumeAdminLoaded) return;
+    var tip = document.createElement('div');
+    tip.className = 'script-warning';
+    tip.textContent = '后台脚本未加载：请确认 /assets/admin.js 可访问，然后强制刷新页面。';
+    document.body.prepend(tip);
+  }, 1200);
+</script>`, '/assets/admin.js');
 }
 
 export function notFoundPage() {

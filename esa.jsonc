@@ -1,0 +1,9 @@
+{
+  "name": "glume-gallery",
+  "entry": "./src/index.js",
+  "installCommand": "",
+  "buildCommand": "",
+  "assets": {
+    "directory": "./public"
+  }
+}

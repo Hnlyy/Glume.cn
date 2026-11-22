@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Minimal gallery system for Alibaba Cloud ESA Pages + EdgeKV",
   "scripts": {
+    "build": "node -e \"console.log('no build step')\"",
     "dev": "esa-cli dev",
     "commit": "esa-cli commit",
     "deploy": "esa-cli deploy"
